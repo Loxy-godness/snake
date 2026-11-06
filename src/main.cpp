@@ -6,6 +6,7 @@
 #include <conio.h>
 #include <cstdlib>
 #include <_mingw_mac.h>
+#include <random>
 
 using namespace std;
 
@@ -16,6 +17,10 @@ struct Point {
     int x = 0;
     int y = 0;
 };
+
+bool is_point_equal(Point a,Point b) {
+    return (a.x == b.x && a.y == b.y);
+}
 
 enum class Direction {
     UP,
@@ -55,7 +60,27 @@ public:
         pending_.push_back(dir);
     }
 
-    void move() {
+    Point next_head() const {
+        Direction dir = pending_.empty() ? dir_ : pending_.front();
+        Point head = body_.front();
+        switch (dir) {
+            case Direction::UP:
+                head.y--;
+                break;
+            case Direction::DOWN:
+                head.y++;
+                break;
+            case Direction::LEFT:
+                head.x--;
+                break;
+            case Direction::RIGHT:
+                head.x++;
+                break;
+        }
+        return head;
+    }
+
+    void move(bool growed) {
         if (!pending_.empty()) {
             dir_ = pending_.front();
             pending_.pop_front();
@@ -77,7 +102,16 @@ public:
                 break;
         }
         body_.push_front(head);
-        body_.pop_back();
+        if (!growed)
+            body_.pop_back();
+    }
+
+    bool occupied(Point p) const{
+        for (const auto& s : body_) {
+            if ( is_point_equal(p, s) )
+                return true;
+        }
+        return false;
     }
 
     const deque<Point>& body() const {
@@ -94,7 +128,19 @@ void clearScreen() {
     system("cls");
 }
 
-void render(const Snake& snake) {
+Point spawnFood(const Snake& snake, mt19937& rng) {
+    uniform_int_distribution<int> distX(1, W - 2);
+    uniform_int_distribution<int> distY(1, H - 2);
+
+    while (true) {
+        Point p{distX(rng) , distY(rng)};
+        if (!snake.occupied(p)) {
+            return p;
+        }
+    }
+}
+
+void render(const Snake& snake, Point food, int score) {
     clearScreen();
     vector<string> board(H,string(W,' '));
 
@@ -107,7 +153,6 @@ void render(const Snake& snake) {
         board[y][W - 1] = '#';
     }
 
-    Point food = {5 , 5};
     board[food.y][food.x] = '*';
 
     for ( const auto& p : snake.body() ) {
@@ -120,6 +165,7 @@ void render(const Snake& snake) {
         cout << board[y] << '\n';
     }
 
+    cout << "Score: " << score << '\n';
     cout.flush();
 }
 
@@ -167,20 +213,34 @@ void handleInput(Snake& snake) {
 }
 
 int main() {
+    random_device rd;
+    mt19937 rng(rd());
+
     Snake snake;
+    Point food = spawnFood(snake, rng);
+    int score = 0;
 
     while (true) {
         handleInput(snake);
-        snake.move();
+
+        Point next = snake.next_head();
+
+        bool eated = (is_point_equal(food, next));
+
+        snake.move(eated);
+
+        if (eated) {
+            ++score;
+            food = spawnFood(snake, rng);
+        }
 
         if ( isOutside(snake.body().front() ) ) {
             cout << "Snake out of board. Day 5 will add collision.\n";
-            clearScreen();
             break;
         }
 
-        render(snake);
-        Sleep(300);
+        render(snake, food, score);
+        Sleep(200);
     }
 
     return 0;
