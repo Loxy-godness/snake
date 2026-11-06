@@ -3,6 +3,9 @@
 #include <string>
 #include <deque>
 #include <windows.h>
+#include <conio.h>
+#include <cstdlib>
+#include <_mingw_mac.h>
 
 using namespace std;
 
@@ -25,6 +28,13 @@ bool isOutside(Point p) {
     return (p.x < 0 || p.x >= W || p.y < 0 || p.y >= H);
 }
 
+bool isOpposite(Direction a, Direction b) {
+    return      (a == Direction::UP && b == Direction::DOWN) ||
+                (a == Direction::DOWN && b == Direction::UP) ||
+                (a == Direction::RIGHT && b == Direction::LEFT) ||
+                (a == Direction::LEFT && b == Direction::RIGHT);
+}
+
 class Snake{
 public:
     Snake(){ reset(); }
@@ -35,9 +45,22 @@ public:
         body_.push_back({W / 2 - 1, H / 2});
         body_.push_back({W / 2 - 2, H / 2});
         dir_ = Direction::RIGHT;
+        pending_.clear();
+    }
+
+    void pushDirection(Direction dir) {
+        Direction last = pending_.empty() ? dir_ : pending_.back();
+        if (last == dir || isOpposite(last, dir))
+            return;
+        pending_.push_back(dir);
     }
 
     void move() {
+        if (!pending_.empty()) {
+            dir_ = pending_.front();
+            pending_.pop_front();
+        }
+
         Point head = body_.front();
         switch (dir_) {
             case Direction::UP:
@@ -64,6 +87,7 @@ public:
 private:
     deque<Point> body_;
     Direction dir_ = Direction::RIGHT;
+    deque<Direction> pending_;
 };
 
 void clearScreen() {
@@ -71,6 +95,7 @@ void clearScreen() {
 }
 
 void render(const Snake& snake) {
+    clearScreen();
     vector<string> board(H,string(W,' '));
 
     for (int x = 0 ; x < W ; x++ ) {
@@ -98,10 +123,54 @@ void render(const Snake& snake) {
     cout.flush();
 }
 
+void handleInput(Snake& snake) {
+    while (_kbhit() ) {
+        int ch = _getch() ;
+
+        if (ch == 0 || ch == 224){
+            int code = _getch();
+            switch (code) {
+                case 72:
+                    snake.pushDirection(Direction::UP);
+                    break;
+                case 80:
+                    snake.pushDirection(Direction::DOWN);
+                    break;
+                case 75:
+                    snake.pushDirection(Direction::LEFT);
+                    break;
+                case 77:
+                    snake.pushDirection(Direction::RIGHT);
+                    break;
+            }
+            continue;
+    }
+
+        switch (ch) {
+            case 'w': case 'W':
+                snake.pushDirection(Direction::UP);
+                break;
+            case 's': case 'S':
+                snake.pushDirection(Direction::DOWN);
+                break;
+            case 'a': case 'A':
+                snake.pushDirection(Direction::LEFT);
+                break;
+            case 'd': case 'D':
+                snake.pushDirection(Direction::RIGHT);
+                break;
+            case 'q': case 'Q':
+                exit(0);
+        }
+
+    }
+}
+
 int main() {
     Snake snake;
 
     while (true) {
+        handleInput(snake);
         snake.move();
 
         if ( isOutside(snake.body().front() ) ) {
@@ -110,7 +179,6 @@ int main() {
             break;
         }
 
-        clearScreen();
         render(snake);
         Sleep(300);
     }
