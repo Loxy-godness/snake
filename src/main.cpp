@@ -22,6 +22,12 @@ bool is_point_equal(Point a,Point b) {
     return (a.x == b.x && a.y == b.y);
 }
 
+enum class Gamestate {
+    Running,
+    Gameover,
+    Exit
+};
+
 enum class Direction {
     UP,
     DOWN,
@@ -106,6 +112,18 @@ public:
             body_.pop_back();
     }
 
+
+    bool selfCollision() const{
+        if (body_.size() <= 1)
+            return false;
+        const Point& head = body_.front();
+        for (size_t i = 1; i < body_.size() ; ++i) {
+            if (is_point_equal(body_[i],head))
+                return true;
+        }
+        return false;
+    }
+
     bool occupied(Point p) const{
         for (const auto& s : body_) {
             if ( is_point_equal(p, s) )
@@ -169,7 +187,18 @@ void render(const Snake& snake, Point food, int score) {
     cout.flush();
 }
 
-void handleInput(Snake& snake) {
+void renderGameOver(int score) {
+    clearScreen();
+    cout << "==================================\n";
+    cout << "        哼~,杂鱼就是杂鱼~          \n";
+    cout << "==================================\n";
+    cout << "Score: " << score << "\n\n";
+    cout << "按 R 再来一次哦~\n";
+    cout << "杂鱼先生，要按 Q 退出吗，嘻嘻~\n";
+    cout.flush();
+}
+
+void handleInput(Snake& snake, Gamestate& state) {
     while (_kbhit() ) {
         int ch = _getch() ;
 
@@ -206,42 +235,73 @@ void handleInput(Snake& snake) {
                 snake.pushDirection(Direction::RIGHT);
                 break;
             case 'q': case 'Q':
-                exit(0);
+                state == Gamestate::Exit;
         }
 
     }
 }
 
 int main() {
+    SetConsoleOutputCP(CP_UTF8);
     random_device rd;
     mt19937 rng(rd());
 
     Snake snake;
     Point food = spawnFood(snake, rng);
     int score = 0;
+    Gamestate state = Gamestate::Running;
 
-    while (true) {
-        handleInput(snake);
+    while (state != Gamestate::Exit) {
+        if (state == Gamestate::Running){
+            handleInput(snake, state);
+            if (state == Gamestate::Exit) {
+                break;
+            }
 
-        Point next = snake.next_head();
+            Point next = snake.next_head();
+            if (isOutside(next)) {
+                state = Gamestate::Gameover;
+                renderGameOver(score);
+                continue;
+            }
 
-        bool eated = (is_point_equal(food, next));
+            bool eated = (is_point_equal(food, next));
 
-        snake.move(eated);
+            snake.move(eated);
 
-        if (eated) {
-            ++score;
-            food = spawnFood(snake, rng);
+            if (snake.selfCollision()) {
+                state = Gamestate::Gameover;
+                renderGameOver(score);
+                continue;
+            }
+
+            if (eated) {
+                ++score;
+                food = spawnFood(snake, rng);
+            }
+
+            render(snake, food, score);
+            Sleep(100);
         }
-
-        if ( isOutside(snake.body().front() ) ) {
-            cout << "Snake out of board. Day 5 will add collision.\n";
-            break;
+        else if (state == Gamestate::Gameover) {
+            if (_kbhit()) {
+                int ch = _getch();
+                if (ch == 'r' || ch == 'R') {
+                    snake.reset();
+                    food = spawnFood(snake, rng);
+                    score = 0;
+                    state = Gamestate::Running;
+                }
+                else if (ch == 'q' || ch == 'Q') {
+                    state = Gamestate::Exit;
+                }
+            }
+            Sleep(50);
         }
-
-        render(snake, food, score);
-        Sleep(200);
     }
+
+
+    cout << "哼~,杂鱼~";
 
     return 0;
 }
